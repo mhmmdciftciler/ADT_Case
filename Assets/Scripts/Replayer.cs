@@ -130,7 +130,6 @@ public class Replayer : MonoBehaviour
         string json = File.ReadAllText(filePath);
 
         _currentReplay = JsonUtility.FromJson<ReplayData>(json);
-        Debug.Assert(_currentReplay.Frames.Count != 0);
         _currentFrameIndex = 0;
         _replayClipName.text = filePath;
         _totalFrameText.text = _currentReplay.Frames.Count.ToString();

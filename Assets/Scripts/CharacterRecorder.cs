@@ -7,15 +7,12 @@ public class CharacterRecorder : MonoBehaviour
 {
     [SerializeField] private Transform _root;
     [SerializeField] private bool _recordRoot;
+#if UNITY_EDITOR
     [SerializeField] private string _boneTag;
-    [SerializeField] private GameObject _indicator;
+#endif
+    [SerializeField] private GameObject _indicator;//sphere
     [SerializeField] private List<Transform> _bones;//Tekrar tekrar her frame bone aramamak için.
     public Animator Animator;
-
-    private void Start()
-    {
-
-    }
 
     public void SerializeCharacterData(CharacterData characterData)
     {
@@ -27,7 +24,6 @@ public class CharacterRecorder : MonoBehaviour
                 boneData.Position = _bones[i].localPosition;
                 boneData.Rotation = _bones[i].localRotation;
                 characterData.BoneDataList.Add(boneData);
-                Debug.Log("CharacterSerialization : " + boneData.Position + " " + boneData.Rotation);
                 _indicator.GetComponent<Renderer>().material.color = Color.red;
             }
             else
