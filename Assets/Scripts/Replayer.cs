@@ -98,12 +98,10 @@ public class Replayer : MonoBehaviour
     private void OnSliderSelect(BaseEventData baseEventData) //button event
     {
         _sliderSelected = true;
-        Debug.Log("OnSliderSelect");
     }
     private void OnSliderDeselect(BaseEventData baseEventData) //button event
     {
         _sliderSelected = false;
-        Debug.Log("OnSliderDeselect");
     }
     public void LoadReplayFiles()
     {
@@ -156,18 +154,15 @@ public class Replayer : MonoBehaviour
     private void PlayFrame(int frameIndex)
     {
         FrameData frameData = _currentReplay.Frames[frameIndex];
-        Debug.Log("FrameIndex : " + frameIndex);
         for (int i = 0; i < _characters.Count; i++)
         {
             CharacterData characterData = frameData.CharactersData[i];
             CharacterRecorder character = _characters[i];
             character.PlayCharacterFrame(characterData);
-
         }
     }
     private void PauseReplay()//button event
     {
-
         _isPlaying = false;
         _playButton.gameObject.SetActive(false);
         _resumeButton.gameObject.SetActive(true);
