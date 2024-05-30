@@ -1,38 +1,26 @@
 using UnityEngine;
 using System.Collections.Generic;
-using System.IO;
 using UnityEngine.Events;
-using UnityEngine.UI;
-using TMPro;
 
 public class Recorder : MonoBehaviour
 {
-    public static Recorder Instance;
-    [SerializeField] private List<CharacterRecorder> _characters;
+    public static Recorder Instance { get; private set; }
+    [SerializeField] private List<Character> _characters;
     [SerializeField] private int _targetFrameRate = 30;
-    [SerializeField] private List<CharacterData> _characterDatas;
-    [SerializeField] private Button _record;
-    [SerializeField] private Button _recordStop;
-    [SerializeField] private TextMeshProUGUI _totalFrameCount;
     private List<FrameData> _frames;
     private bool _isRecording = false;
-    public UnityEvent<bool> OnRecording;
+    public UnityEvent<ReplayData> OnRecordStoped;
+    public UnityEvent OnRecordStarted;
+    public UnityEvent<int> OnRecordFrame;
     private void Awake()
     {
         if (Instance == null)
-        {
             Instance = this;
-        }
         else
-        {
             Destroy(gameObject);
-        }
-
     }
     private void Start()
     {
-        _record.onClick.AddListener(StartRecording);
-        _recordStop.onClick.AddListener(StopRecording);
         Application.targetFrameRate = _targetFrameRate;
         _frames = new List<FrameData>();
     }
@@ -45,30 +33,18 @@ public class Recorder : MonoBehaviour
         }
     }
 
-    private void StartRecording()
+    public void StartRecord()
     {
         _frames.Clear();
-        foreach (CharacterRecorder character in _characters)
-        {
-            character.Animator.enabled = true;
-        }
         _isRecording = true;
-        OnRecording.Invoke(true);
-        _recordStop.gameObject.SetActive(true);
-        _record.gameObject.SetActive(false);
+        OnRecordStarted.Invoke();
+
     }
 
-    private void StopRecording()
+    public void StopRecord()
     {
         _isRecording = false;
         SaveRecording();
-        OnRecording.Invoke(false);
-        _record.gameObject.SetActive(true);
-        _recordStop.gameObject.SetActive(false);
-        foreach (CharacterRecorder character in _characters)
-        {
-            character.Animator.enabled = false;
-        }
     }
 
     private void RecordFrame()
@@ -76,51 +52,26 @@ public class Recorder : MonoBehaviour
         List<CharacterData> characterDatas = new List<CharacterData>();
         for (int i = 0; i < _characters.Count; i++)
         {
-            CharacterData characterData = new CharacterData();
-            characterData.Save = _characterDatas[i].Save;
-            characterData.BoneDataList = new List<BoneData>();
-            _characters[i].SerializeCharacterData(characterData);
+            CharacterData characterData = _characters[i].GetCharacterData();
             characterDatas.Add(characterData);
         }
         FrameData frameData = new FrameData();
         frameData.CharactersData = characterDatas;
         _frames.Add(frameData);
-        _totalFrameCount.text = _frames.Count.ToString();
+        OnRecordFrame.Invoke(_frames.Count);
     }
 
     private void SaveRecording()
     {
         ReplayData replayData = new ReplayData();
         replayData.Frames = _frames;
-        string json = JsonUtility.ToJson(replayData, true);
-        File.WriteAllText(Application.persistentDataPath + "/replay_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".json", json);
-        Replayer.Instance.LoadReplayFiles();
+        FileManager.SaveReplayData(replayData);
+        OnRecordStoped.Invoke(replayData);
     }
 
 }
 
-[System.Serializable]
-public struct BoneData
-{
-    public Vector3 Position;
-    public Quaternion Rotation;
-}
 
-[System.Serializable]
-public struct CharacterData
-{
-    public List<BoneData> BoneDataList;
-    public bool Save;
-}
 
-[System.Serializable]
-public struct FrameData
-{
-    public List<CharacterData> CharactersData;
-}
 
-[System.Serializable]
-public struct ReplayData
-{
-    public List<FrameData> Frames;
-}
+

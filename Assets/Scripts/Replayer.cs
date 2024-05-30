@@ -5,143 +5,50 @@ using UnityEngine;
 using TMPro;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.EventSystems;
+using UnityEngine.Events;
 using System;
 
 public class Replayer : MonoBehaviour
 {
-    public static Replayer Instance;
-    public List<CharacterRecorder> _characters;
-    [SerializeField] private TMP_Dropdown _replayDropdown;
-    [SerializeField] private TextMeshProUGUI _replayClipName;
-    [SerializeField] private TextMeshProUGUI _currentFrameText;
-    [SerializeField] private TextMeshProUGUI _totalFrameText;
-    [SerializeField] private Slider _playerSlider;
-    [SerializeField] private Button _playButton;
-    [SerializeField] private Button _resumeButton;
-    [SerializeField] private Button _pauseButton;
-    [SerializeField] private Button _nextButton;
-    [SerializeField] private Button _previousButton;
-    [SerializeField] private int _skipFrameCount = 15;
-    private List<string> _replayFiles;
-    private ReplayData _currentReplay;
-    private int _currentFrameIndex = 0;
-    private bool _isPlaying = false;
-    private bool _sliderSelected;
-    private void Awake()
-    {
-        if (Instance == null)
-            Instance = this;
-        else
-            Destroy(gameObject);
-    }
-    void Start()
-    {
-        Recorder.Instance.OnRecording.AddListener(OnRecording);
-        _pauseButton.onClick.AddListener(PauseReplay);
-        _playButton.onClick.AddListener(StartReplay);
-        _resumeButton.onClick.AddListener(ResumeReplay);
-        _nextButton.onClick.AddListener(FastForward);
-        _previousButton.onClick.AddListener(Rewind);
-        _replayDropdown.onValueChanged.AddListener(StartReplay);
-        _playerSlider.onValueChanged.AddListener(SetCurrentFramIndex);
-        AddEventTrigger(_playerSlider.gameObject, EventTriggerType.Deselect, OnSliderDeselect);
-        AddEventTrigger(_playerSlider.gameObject, EventTriggerType.Select, OnSliderSelect);
-        LoadReplayFiles();
-    }
+    public List<Character> _characters;
 
+    [SerializeField] private int _skipFrameCount = 15;
+    private List<ReplayData> _replayDatas;
+    public ReplayData CurrentReplayData { get; private set; }
+    private int _currentFrameIndex = 0;
+    public bool IsPlaying { get; private set; }
+
+    public UnityEvent OnStartReplay;
+    public UnityEvent OnPauseReplay;
+    public UnityEvent OnResumeReplay;
+    public UnityEvent<int> OnCurrentFrameIndexChanged;
+
+    public int CurrentFrameIndex => _currentFrameIndex;
+    private void Start()
+    {
+        _replayDatas = FileManager.GetReplayDatas();
+        Recorder.Instance.OnRecordStoped.AddListener(OnRecordStoped);
+    }
     void Update()
     {
-        if (_isPlaying)
+        if (IsPlaying)
         {
-            _currentFrameText.text = _currentFrameIndex.ToString();
-            if (!_sliderSelected)
-            {
-                _playerSlider.SetValueWithoutNotify(_currentFrameIndex);
-                PlayFrame();
-            }
-            else
-            {
-                PlayFrame(_currentFrameIndex);
-            }
+            PlayFrame();
         }
     }
-    private void AddEventTrigger(GameObject target,
-        EventTriggerType eventType,
-        UnityEngine.Events.UnityAction<BaseEventData> action)
-    {
-        EventTrigger trigger = target.GetComponent<EventTrigger>();
-        if (trigger == null)
-        {
-            trigger = target.AddComponent<EventTrigger>();
-        }
 
-        EventTrigger.Entry entry = new EventTrigger.Entry();
-        entry.eventID = eventType;
-        entry.callback.AddListener(action);
-        trigger.triggers.Add(entry);
-    }
-
-    private void OnRecording(bool recording)
+    public void StartReplay(int index)
     {
-        _playButton.interactable = !recording;
-        _pauseButton.interactable = !recording;
-        _playerSlider.interactable = !recording;
-        _replayDropdown.interactable = !recording;
-        _nextButton.interactable = !recording;
-        _previousButton.interactable = !recording;
-        if (recording && _isPlaying)
-        {
-            PauseReplay();
-        }
-        Debug.Log("OnRecording : " + recording);
-    }
-    private void OnSliderSelect(BaseEventData baseEventData) //button event
-    {
-        _sliderSelected = true;
-    }
-    private void OnSliderDeselect(BaseEventData baseEventData) //button event
-    {
-        _sliderSelected = false;
-    }
-    public void LoadReplayFiles()
-    {
-        _replayFiles = new List<string>(Directory.GetFiles(Application.persistentDataPath, "*.json"));
-        _replayDropdown.ClearOptions();
-        List<string> options = new List<string>();
-        foreach (string file in _replayFiles)
-        {
-            options.Add(Path.GetFileNameWithoutExtension(file));
-        }
-        _replayDropdown.AddOptions(options);
-    }
-    private void StartReplay(int index)
-    {
-        _pauseButton.gameObject.SetActive(false);
-        _resumeButton.gameObject.SetActive(false);
-        _playButton.gameObject.SetActive(true);
-    }
-    private void StartReplay()//button event
-    {
-        if (_replayFiles.Count == 0) return;
-
-        string filePath = _replayFiles[_replayDropdown.value];
-        string json = File.ReadAllText(filePath);
-
-        _currentReplay = JsonUtility.FromJson<ReplayData>(json);
+        CurrentReplayData = _replayDatas[index];
         _currentFrameIndex = 0;
-        _replayClipName.text = filePath;
-        _totalFrameText.text = _currentReplay.Frames.Count.ToString();
-        _playerSlider.maxValue = _currentReplay.Frames.Count - 1;
-        _playerSlider.SetValueWithoutNotify(0);
-        _currentFrameText.text = 0.ToString();
-        _isPlaying = true;
-        _pauseButton.gameObject.SetActive(true);
-        _playButton.gameObject.SetActive(false);
+        OnCurrentFrameIndexChanged.Invoke(_currentFrameIndex);
+        IsPlaying = true;
+        OnStartReplay.Invoke();
     }
 
     private void PlayFrame()
     {
-        if (_currentFrameIndex < _currentReplay.Frames.Count)
+        if (_currentFrameIndex < CurrentReplayData.Frames.Count)
         {
             PlayFrame(_currentFrameIndex);
             _currentFrameIndex++;
@@ -150,78 +57,76 @@ public class Replayer : MonoBehaviour
         {
             _currentFrameIndex = 0;
         }
+        OnCurrentFrameIndexChanged.Invoke(_currentFrameIndex);
     }
     private void PlayFrame(int frameIndex)
     {
-        FrameData frameData = _currentReplay.Frames[frameIndex];
+        FrameData frameData = CurrentReplayData.Frames[frameIndex];
         for (int i = 0; i < _characters.Count; i++)
         {
             CharacterData characterData = frameData.CharactersData[i];
-            CharacterRecorder character = _characters[i];
-            character.PlayCharacterFrame(characterData);
+            Character character = _characters[i];
+            character.SetCharacterData(characterData);
         }
     }
-    private void PauseReplay()//button event
+    public void PauseReplay()
     {
-        _isPlaying = false;
-        _playButton.gameObject.SetActive(false);
-        _resumeButton.gameObject.SetActive(true);
-        _pauseButton.gameObject.SetActive(false);
+        IsPlaying = false;
+        OnPauseReplay.Invoke();
     }
 
-    private void ResumeReplay()//button event
+    public void ResumeReplay()
     {
-        _isPlaying = true;
-        _playButton.gameObject.SetActive(false);
-        _pauseButton.gameObject.SetActive(true);
-        _resumeButton.gameObject.SetActive(false);
+        IsPlaying = true;
+        OnResumeReplay.Invoke();
     }
 
-    private void FastForward()//button event
+    public void FastForward()
     {
-        if (_currentFrameIndex + _skipFrameCount < _currentReplay.Frames.Count)
+        if (_currentFrameIndex + _skipFrameCount < CurrentReplayData.Frames.Count)
         {
             _currentFrameIndex += _skipFrameCount;
         }
-        else if(_currentFrameIndex == _currentReplay.Frames.Count - 1)
+        else if (_currentFrameIndex == CurrentReplayData.Frames.Count - 1)
         {
             _currentFrameIndex = _skipFrameCount;
         }
         else
         {
-            _currentFrameIndex = _currentReplay.Frames.Count - 1;
+            _currentFrameIndex = CurrentReplayData.Frames.Count - 1;
         }
-        PauseReplay();
-        _currentFrameText.text = _currentFrameIndex.ToString();
-        _playerSlider.SetValueWithoutNotify(_currentFrameIndex);
 
+        OnCurrentFrameIndexChanged.Invoke(_currentFrameIndex);
         PlayFrame(_currentFrameIndex);
     }
 
-    private void Rewind()//button event
+    public void Rewind()
     {
         if (_currentFrameIndex - _skipFrameCount > 0)
         {
             _currentFrameIndex -= _skipFrameCount;
         }
-        else if(_currentFrameIndex == 0)
+        else if (_currentFrameIndex == 0)
         {
-            _currentFrameIndex = _currentReplay.Frames.Count -_skipFrameCount;
+            _currentFrameIndex = CurrentReplayData.Frames.Count - _skipFrameCount;
         }
         else
         {
             _currentFrameIndex = 0;
         }
-        _currentFrameText.text = _currentFrameIndex.ToString();
-        _playerSlider.SetValueWithoutNotify(_currentFrameIndex);
 
         PlayFrame(_currentFrameIndex);
     }
-    private void SetCurrentFramIndex(float framerate)//sliderEvent
+    public void SetReplayerCurrentFrameIndex(int framerate)
     {
-        _currentFrameIndex = (int)framerate;
-        _currentFrameText.text = _currentFrameIndex.ToString();
+        _currentFrameIndex = framerate;
+        OnCurrentFrameIndexChanged.Invoke(_currentFrameIndex);
         PlayFrame(_currentFrameIndex);
+    }
+
+    private void OnRecordStoped(ReplayData replayData)
+    {
+        _replayDatas.Add(replayData);
     }
     [ContextMenu("Delet All Json Files")]
     private void DeleteReplayFiles()

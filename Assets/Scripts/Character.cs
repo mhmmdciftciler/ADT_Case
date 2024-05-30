@@ -3,27 +3,36 @@ using System.Collections.Generic;
 using UnityEngine;
 
 
-public class CharacterRecorder : MonoBehaviour
+public class Character : MonoBehaviour
 {
+    public bool isCharacterDataSave;
     [SerializeField] private Transform _root;
     [SerializeField] private bool _recordRoot;
 #if UNITY_EDITOR
-    [SerializeField] private string _boneTag;
+    [SerializeField] private string _boneTag = "Recordable";
 #endif
     [SerializeField] private GameObject _indicator;//sphere
     [SerializeField] private List<Transform> _bones;//Tekrar tekrar her frame bone aramamak için.
-    public Animator Animator;
-
-    public void SerializeCharacterData(CharacterData characterData)
+    [SerializeField] private Animator Animator;
+    private void Start()
     {
+        Recorder.Instance.OnRecordStarted.AddListener(StartRecord);
+        Recorder.Instance.OnRecordStoped.AddListener(StopRecord);
+    }
+    public CharacterData GetCharacterData()
+    {
+        CharacterData characterData = new CharacterData();
+        characterData.TransformData = new List<TransformData>();
+        characterData.isCharacterDataSave = isCharacterDataSave;
+        
         for (int i = 0; i < _bones.Count; i++)
         {
-            if (characterData.Save)
+            if (isCharacterDataSave)
             {
-                BoneData boneData = new BoneData();
+                TransformData boneData = new TransformData();
                 boneData.Position = _bones[i].localPosition;
                 boneData.Rotation = _bones[i].localRotation;
-                characterData.BoneDataList.Add(boneData);
+                characterData.TransformData.Add(boneData);
                 _indicator.GetComponent<Renderer>().material.color = Color.red;
             }
             else
@@ -31,17 +40,17 @@ public class CharacterRecorder : MonoBehaviour
                 _indicator.GetComponent<Renderer>().material.color = Color.white;
             }
         }
+        return characterData;
     }
-    public void PlayCharacterFrame(CharacterData characterData)
+    public void SetCharacterData(CharacterData characterData)
     {
-        if (characterData.Save)
+        if (characterData.isCharacterDataSave)
         {
             for (int i = 0; i < _bones.Count; i++)
             {
                 Transform bone = _bones[i];
-                bone.localPosition = characterData.BoneDataList[i].Position;
-                bone.localRotation = characterData.BoneDataList[i].Rotation;
-                Debug.Log(characterData.BoneDataList[i].Rotation);
+                bone.localPosition = characterData.TransformData[i].Position;
+                bone.localRotation = characterData.TransformData[i].Rotation;
             }
             _indicator.GetComponent<Renderer>().material.color = Color.green;
         }
@@ -52,6 +61,14 @@ public class CharacterRecorder : MonoBehaviour
 
 
 
+    }
+    private void StartRecord()
+    {
+        Animator.enabled = true;
+    }
+    private void StopRecord(ReplayData replayData)
+    {
+        Animator.enabled = false;
     }
 #if UNITY_EDITOR
     [ContextMenu("Find Transform With Tag")]
